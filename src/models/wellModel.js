@@ -49,10 +49,6 @@ const WellSchema = new mongoose.Schema({
         itemState: {
           type: String,  // No enum - UI can provide any state dynamically
           trim: true
-        },
-        itemComment: {
-          type: String,
-          trim: true
         }
       }]
     }]

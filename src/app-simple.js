@@ -46,16 +46,6 @@ try {
   console.error('Stack:', error.stack);
 }
 
-// Route 2: Try tripRoutes  
-try {
-  console.log('\nAttempting to load tripRoutes...');
-  const tripRoutes = require('./routes/tripRoutes');
-  app.use('/api/trips', tripRoutes);
-  console.log('✅ tripRoutes loaded successfully');
-} catch (error) {
-  console.error('❌ tripRoutes failed:', error.message);
-}
-
 // Route 3: Try siteRoutes
 try {
   console.log('\nAttempting to load siteRoutes...');
@@ -64,16 +54,6 @@ try {
   console.log('✅ siteRoutes loaded successfully');
 } catch (error) {
   console.error('❌ siteRoutes failed:', error.message);
-}
-
-// Route 4: Try passengerRoutes LAST (most likely culprit)
-try {
-  console.log('\nAttempting to load passengerRoutes...');
-  const passengerRoutes = require('./routes/passengerRoutes');
-  app.use('/api/passengers', passengerRoutes);
-  console.log('✅ passengerRoutes loaded successfully');
-} catch (error) {
-  console.error('❌ passengerRoutes failed:', error.message);
 }
 
 // 5. Health check
@@ -106,9 +86,7 @@ app.get(['/', '/api'], (req, res) => {
       test: '/api/test',
       health: '/api/health',
       users: '/api/users',
-      trips: '/api/trips',
       sites: '/api/sites',
-      passengers: '/api/passengers'
     },
     cors: 'Enabled for all origins (*)'
   });
@@ -143,8 +121,6 @@ app.listen(PORT, () => {
   console.log(`  http://localhost:${PORT}/api/test`);
   console.log(`  http://localhost:${PORT}/api/health`);
   console.log(`  http://localhost:${PORT}/api/users`);
-  console.log(`  http://localhost:${PORT}/api/trips`);
   console.log(`  http://localhost:${PORT}/api/sites`);
-  console.log(`  http://localhost:${PORT}/api/passengers`);
   console.log('\n💡 Tip: Open http://localhost:3000/api/test in your browser');
 });

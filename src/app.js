@@ -43,8 +43,6 @@ initializeDB();
 
 // ========== ROUTES ==========
 app.use('/api/users', require('./routes/userRoutes'));
-app.use('/api/passengers', require('./routes/passengerRoutes'));
-app.use('/api/trips', require('./routes/tripRoutes'));
 app.use('/api/sites', require('./routes/siteRoutes'));
 app.use('/api/wells', require('./routes/wellRoutes'));
 
@@ -81,8 +79,6 @@ app.get(['/', '/api'], (req, res) => {
     endpoints: {
       health: '/api/health',
       users: '/api/users',
-      passengers: '/api/passengers',
-      trips: '/api/trips',
       sites: '/api/sites',
       wells: '/api/wells'
     },
@@ -126,8 +122,6 @@ if (process.env.VERCEL) {
     console.log('\n📡 Available endpoints:');
     console.log(`   http://localhost:${PORT}/api/health`);
     console.log(`   http://localhost:${PORT}/api/users`);
-    console.log(`   http://localhost:${PORT}/api/passengers`);
-    console.log(`   http://localhost:${PORT}/api/trips`);
     console.log(`   http://localhost:${PORT}/api/sites`);
     console.log('\n✅ CORS Status: ANY origin can access this API');
     console.log('   • localhost:5174');
