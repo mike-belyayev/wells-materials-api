@@ -46,6 +46,7 @@ app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/passengers', require('./routes/passengerRoutes'));
 app.use('/api/trips', require('./routes/tripRoutes'));
 app.use('/api/sites', require('./routes/siteRoutes'));
+app.use('/api/wells', require('./routes/wellRoutes'));
 
 // ========== HEALTH CHECK ==========
 app.get('/api/health', (req, res) => {
@@ -82,7 +83,8 @@ app.get(['/', '/api'], (req, res) => {
       users: '/api/users',
       passengers: '/api/passengers',
       trips: '/api/trips',
-      sites: '/api/sites'
+      sites: '/api/sites',
+      wells: '/api/wells'
     },
     note: 'CORS is configured to allow ALL origins in ALL environments'
   });
