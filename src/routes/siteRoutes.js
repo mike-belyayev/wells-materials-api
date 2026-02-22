@@ -41,6 +41,104 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Add these to your siteRoutes.js for the new functionality:
+
+// @route   PUT /api/sites/:siteName/active-well
+// @desc    Set the active well for a site
+router.put('/:siteName/active-well', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const { wellId } = req.body;
+    const siteName = req.params.siteName;
+
+    if (!wellId) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'wellId is required' 
+      });
+    }
+
+    const updatedSite = await Site.findOneAndUpdate(
+      { siteName: siteName.trim() },
+      { $set: { activeWell: wellId } },
+      { new: true, runValidators: true }
+    ).populate('activeWell'); // Populate to return full well data
+
+    if (!updatedSite) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: `Site '${siteName}' not found` 
+      });
+    }
+
+    res.json(updatedSite);
+  } catch (err) {
+    handleError(res, err, 'Failed to set active well');
+  }
+});
+
+// @route   PUT /api/sites/:siteName/next-well
+// @desc    Set the next well for a site
+router.put('/:siteName/next-well', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const { wellId } = req.body;
+    const siteName = req.params.siteName;
+
+    if (!wellId) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'wellId is required' 
+      });
+    }
+
+    const updatedSite = await Site.findOneAndUpdate(
+      { siteName: siteName.trim() },
+      { $set: { nextWell: wellId } },
+      { new: true, runValidators: true }
+    ).populate('nextWell');
+
+    if (!updatedSite) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: `Site '${siteName}' not found` 
+      });
+    }
+
+    res.json(updatedSite);
+  } catch (err) {
+    handleError(res, err, 'Failed to set next well');
+  }
+});
+
+// @route   GET /api/sites/:siteName/with-wells
+// @desc    Get site with populated well data
+router.get('/:siteName/with-wells', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const siteName = req.params.siteName;
+    
+    const site = await Site.findOne({ siteName: siteName.trim() })
+      .populate('activeWell')
+      .populate('nextWell')
+      .maxTimeMS(10000);
+    
+    if (!site) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: `Site '${siteName}' not found` 
+      });
+    }
+    
+    res.json(site);
+  } catch (err) {
+    handleError(res, err, 'Failed to fetch site with wells');
+  }
+});
+
 // @route   PUT /api/sites/:siteName/pob
 // @desc    Update POB for a specific site (manual update)
 router.put('/:siteName/pob', async (req, res) => {
