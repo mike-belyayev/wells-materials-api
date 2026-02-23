@@ -1,6 +1,7 @@
+// routes/siteRoutes.js
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose'); // Added for Well model reference
+const mongoose = require('mongoose');
 const Site = require('../models/siteModel');
 const dbConnect = require('../lib/mongodb');
 
@@ -32,7 +33,7 @@ const handleError = (res, error, customMessage = 'Server Error') => {
   res.status(500).json({ error: customMessage });
 };
 
-// ========== EXISTING ROUTES (KEEP ALL OF THESE) ==========
+// ========== EXISTING ROUTES ==========
 
 // @route   GET /api/sites
 // @desc    Get all sites
@@ -221,7 +222,7 @@ router.post('/initialize', async (req, res) => {
   try {
     await dbConnect();
     
-    const locations = ['Ogle', 'NTM', 'NSC', 'NDT', 'NBD', 'STC'];
+    const locations = ['NTM', 'NSC', 'NDT', 'NBD', 'STC']; // Removed Ogle
     const defaultMaximumPOB = 200;
     
     const operations = locations.map(siteName => ({
@@ -260,7 +261,7 @@ router.post('/initialize', async (req, res) => {
   }
 });
 
-// ========== NEW WELL-RELATED ROUTES (ADDED) ==========
+// ========== NEW WELL ASSIGNMENT ROUTES ==========
 
 // @route   GET /api/sites/:siteName/with-wells
 // @desc    Get site with populated well data
