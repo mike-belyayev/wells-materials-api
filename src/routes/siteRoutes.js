@@ -33,8 +33,7 @@ const handleError = (res, error, customMessage = 'Server Error') => {
   res.status(500).json({ error: customMessage });
 };
 
-// ========== EXISTING ROUTES ==========
-
+// ========== PUBLIC ROUTES (No auth required) ==========
 // @route   GET /api/sites
 // @desc    Get all sites
 router.get('/', async (req, res) => {
@@ -52,169 +51,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// @route   GET /api/sites/:siteName
-// @desc    Get specific site by name
-router.get('/:siteName', async (req, res) => {
-  try {
-    await dbConnect();
-    
-    const siteName = req.params.siteName;
-    
-    if (!siteName?.trim()) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        message: 'Site name is required' 
-      });
-    }
-
-    const site = await Site.findOne({ siteName: siteName.trim() })
-      .maxTimeMS(10000);
-    
-    if (!site) {
-      return res.status(404).json({ 
-        error: 'Not found',
-        message: `Site '${siteName}' not found` 
-      });
-    }
-    
-    res.json(site);
-  } catch (err) {
-    handleError(res, err, 'Failed to fetch site');
-  }
-});
-
-// @route   PUT /api/sites/:siteName
-// @desc    Update site details (including maximumPOB)
-router.put('/:siteName', async (req, res) => {
-  try {
-    await dbConnect();
-    
-    const siteName = req.params.siteName;
-    const { maximumPOB, currentPOB } = req.body;
-
-    if (!siteName?.trim()) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        message: 'Site name is required' 
-      });
-    }
-
-    const updateData = {};
-    
-    if (maximumPOB !== undefined) {
-      if (!Number.isInteger(maximumPOB) || maximumPOB <= 0) {
-        return res.status(400).json({ 
-          error: 'Validation failed',
-          message: 'maximumPOB must be a positive integer' 
-        });
-      }
-      updateData.maximumPOB = maximumPOB;
-    }
-
-    if (currentPOB !== undefined) {
-      if (!Number.isInteger(currentPOB) || currentPOB < 0) {
-        return res.status(400).json({ 
-          error: 'Validation failed',
-          message: 'currentPOB must be a non-negative integer' 
-        });
-      }
-      updateData.currentPOB = currentPOB;
-      updateData.pobUpdatedDate = new Date();
-    }
-
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        message: 'No valid fields to update' 
-      });
-    }
-
-    const updatedSite = await Site.findOneAndUpdate(
-      { siteName: siteName.trim() },
-      { $set: updateData },
-      { 
-        new: true, 
-        runValidators: true,
-        maxTimeMS: 10000 
-      }
-    );
-
-    if (!updatedSite) {
-      return res.status(404).json({ 
-        error: 'Not found',
-        message: `Site '${siteName}' not found` 
-      });
-    }
-
-    console.log(`Updated site: ${siteName}`, updateData);
-    res.json(updatedSite);
-  } catch (err) {
-    handleError(res, err, 'Failed to update site');
-  }
-});
-
-// @route   PUT /api/sites/:siteName/pob
-// @desc    Update POB for a specific site (manual update)
-router.put('/:siteName/pob', async (req, res) => {
-  try {
-    await dbConnect();
-    
-    const { currentPOB, maximumPOB } = req.body;
-    const siteName = req.params.siteName;
-
-    if (!siteName?.trim()) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        message: 'Site name is required' 
-      });
-    }
-
-    if (currentPOB === undefined || currentPOB === null) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        message: 'currentPOB field is required' 
-      });
-    }
-
-    if (!Number.isInteger(currentPOB) || currentPOB < 0) {
-      return res.status(400).json({ 
-        error: 'Validation failed',
-        message: 'currentPOB must be a non-negative integer' 
-      });
-    }
-
-    const updateData = {
-      currentPOB,
-      pobUpdatedDate: new Date()
-    };
-
-    if (maximumPOB !== undefined) {
-      if (!Number.isInteger(maximumPOB) || maximumPOB <= 0) {
-        return res.status(400).json({ 
-          error: 'Validation failed',
-          message: 'maximumPOB must be a positive integer' 
-        });
-      }
-      updateData.maximumPOB = maximumPOB;
-    }
-
-    const updatedSite = await Site.findOneAndUpdate(
-      { siteName: siteName.trim() },
-      { $set: updateData },
-      { 
-        new: true, 
-        upsert: true,
-        runValidators: true,
-        maxTimeMS: 10000 
-      }
-    );
-
-    console.log(`Updated POB for ${siteName}: ${currentPOB}`);
-    res.json(updatedSite);
-  } catch (err) {
-    handleError(res, err, 'Failed to update POB');
-  }
-});
+// ========== SPECIFIC ACTION ROUTES (must come BEFORE parameterized routes) ==========
 
 // @route   POST /api/sites/initialize
 // @desc    Initialize all sites with default values
@@ -222,7 +59,7 @@ router.post('/initialize', async (req, res) => {
   try {
     await dbConnect();
     
-    const locations = ['NTM', 'NSC', 'NDT', 'NBD', 'STC']; // Removed Ogle
+    const locations = ['NTM', 'NSC', 'NDT', 'NBD', 'STC'];
     const defaultMaximumPOB = 200;
     
     const operations = locations.map(siteName => ({
@@ -260,8 +97,6 @@ router.post('/initialize', async (req, res) => {
     handleError(res, err, 'Failed to initialize sites');
   }
 });
-
-// ========== NEW WELL ASSIGNMENT ROUTES ==========
 
 // @route   GET /api/sites/:siteName/with-wells
 // @desc    Get site with populated well data
@@ -501,6 +336,172 @@ router.delete('/:siteName/next-well', async (req, res) => {
     res.json(updatedSite);
   } catch (err) {
     handleError(res, err, 'Failed to remove next well');
+  }
+});
+
+// @route   PUT /api/sites/:siteName/pob
+// @desc    Update POB for a specific site (manual update)
+router.put('/:siteName/pob', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const { currentPOB, maximumPOB } = req.body;
+    const siteName = req.params.siteName;
+
+    if (!siteName?.trim()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Site name is required' 
+      });
+    }
+
+    if (currentPOB === undefined || currentPOB === null) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'currentPOB field is required' 
+      });
+    }
+
+    if (!Number.isInteger(currentPOB) || currentPOB < 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'currentPOB must be a non-negative integer' 
+      });
+    }
+
+    const updateData = {
+      currentPOB,
+      pobUpdatedDate: new Date()
+    };
+
+    if (maximumPOB !== undefined) {
+      if (!Number.isInteger(maximumPOB) || maximumPOB <= 0) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: 'maximumPOB must be a positive integer' 
+        });
+      }
+      updateData.maximumPOB = maximumPOB;
+    }
+
+    const updatedSite = await Site.findOneAndUpdate(
+      { siteName: siteName.trim() },
+      { $set: updateData },
+      { 
+        new: true, 
+        upsert: true,
+        runValidators: true,
+        maxTimeMS: 10000 
+      }
+    );
+
+    console.log(`Updated POB for ${siteName}: ${currentPOB}`);
+    res.json(updatedSite);
+  } catch (err) {
+    handleError(res, err, 'Failed to update POB');
+  }
+});
+
+// ========== PARAMETERIZED ROUTES (must come LAST) ==========
+
+// @route   GET /api/sites/:siteName
+// @desc    Get specific site by name
+router.get('/:siteName', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const siteName = req.params.siteName;
+    
+    if (!siteName?.trim()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Site name is required' 
+      });
+    }
+
+    const site = await Site.findOne({ siteName: siteName.trim() })
+      .maxTimeMS(10000);
+    
+    if (!site) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: `Site '${siteName}' not found` 
+      });
+    }
+    
+    res.json(site);
+  } catch (err) {
+    handleError(res, err, 'Failed to fetch site');
+  }
+});
+
+// @route   PUT /api/sites/:siteName
+// @desc    Update site details (including maximumPOB)
+router.put('/:siteName', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const siteName = req.params.siteName;
+    const { maximumPOB, currentPOB } = req.body;
+
+    if (!siteName?.trim()) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Site name is required' 
+      });
+    }
+
+    const updateData = {};
+    
+    if (maximumPOB !== undefined) {
+      if (!Number.isInteger(maximumPOB) || maximumPOB <= 0) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: 'maximumPOB must be a positive integer' 
+        });
+      }
+      updateData.maximumPOB = maximumPOB;
+    }
+
+    if (currentPOB !== undefined) {
+      if (!Number.isInteger(currentPOB) || currentPOB < 0) {
+        return res.status(400).json({ 
+          error: 'Validation failed',
+          message: 'currentPOB must be a non-negative integer' 
+        });
+      }
+      updateData.currentPOB = currentPOB;
+      updateData.pobUpdatedDate = new Date();
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'No valid fields to update' 
+      });
+    }
+
+    const updatedSite = await Site.findOneAndUpdate(
+      { siteName: siteName.trim() },
+      { $set: updateData },
+      { 
+        new: true, 
+        runValidators: true,
+        maxTimeMS: 10000 
+      }
+    );
+
+    if (!updatedSite) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: `Site '${siteName}' not found` 
+      });
+    }
+
+    console.log(`Updated site: ${siteName}`, updateData);
+    res.json(updatedSite);
+  } catch (err) {
+    handleError(res, err, 'Failed to update site');
   }
 });
 
