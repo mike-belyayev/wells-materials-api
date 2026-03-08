@@ -32,6 +32,8 @@ const handleError = (res, error, customMessage = 'Server Error') => {
   res.status(500).json({ error: customMessage });
 };
 
+// ==================== GET ROUTES ====================
+
 // @route   GET /api/wells
 // @desc    Get all wells
 router.get('/', async (req, res) => {
@@ -75,35 +77,6 @@ router.get('/owner/:wellOwner', async (req, res) => {
   }
 });
 
-// @route   GET /api/wells/:id
-// @desc    Get specific well by ID
-router.get('/:id', async (req, res) => {
-  try {
-    await dbConnect();
-    
-    const well = await Well.findById(req.params.id)
-      .maxTimeMS(10000);
-    
-    if (!well) {
-      return res.status(404).json({ 
-        error: 'Not found',
-        message: 'Well not found' 
-      });
-    }
-    
-    res.json(well);
-  } catch (err) {
-    // Check if invalid MongoDB ID
-    if (err.name === 'CastError') {
-      return res.status(400).json({ 
-        error: 'Invalid ID format',
-        message: 'The provided well ID is invalid' 
-      });
-    }
-    handleError(res, err, 'Failed to fetch well');
-  }
-});
-
 // @route   GET /api/wells/name/:wellName
 // @desc    Get specific well by name
 router.get('/name/:wellName', async (req, res) => {
@@ -134,6 +107,37 @@ router.get('/name/:wellName', async (req, res) => {
     handleError(res, err, 'Failed to fetch well');
   }
 });
+
+// @route   GET /api/wells/:id
+// @desc    Get specific well by ID
+router.get('/:id', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const well = await Well.findById(req.params.id)
+      .maxTimeMS(10000);
+    
+    if (!well) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Well not found' 
+      });
+    }
+    
+    res.json(well);
+  } catch (err) {
+    // Check if invalid MongoDB ID
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to fetch well');
+  }
+});
+
+// ==================== POST/CREATE ROUTES ====================
 
 // @route   POST /api/wells
 // @desc    Create a new well
@@ -182,8 +186,58 @@ router.post('/', async (req, res) => {
   }
 });
 
+// @route   POST /api/wells/initialize
+// @desc    Initialize with sample wells (optional - similar to sites initialize)
+router.post('/initialize', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const sampleWells = [
+      {
+        wellName: "Exploration Well A",
+        wellAFE: "AFE-2024-001",
+        wellOwner: "Guyana Oil Corp",
+        wellPhases: []
+      },
+      {
+        wellName: "Production Well B",
+        wellAFE: "AFE-2024-002",
+        wellOwner: "Guyana Oil Corp",
+        wellPhases: []
+      }
+    ];
+
+    const operations = sampleWells.map(well => ({
+      updateOne: {
+        filter: { wellName: well.wellName },
+        update: { $setOnInsert: well },
+        upsert: true
+      }
+    }));
+
+    const result = await Well.bulkWrite(operations, { maxTimeMS: 15000 });
+    
+    const wells = await Well.find()
+      .sort({ wellName: 1 })
+      .maxTimeMS(10000);
+    
+    console.log(`Initialized wells: ${result.upsertedCount} created, ${result.matchedCount} existing`);
+    
+    res.status(201).json({
+      message: 'Wells initialized successfully',
+      created: result.upsertedCount,
+      existing: result.matchedCount,
+      wells: wells
+    });
+  } catch (err) {
+    handleError(res, err, 'Failed to initialize wells');
+  }
+});
+
+// ==================== UPDATE ROUTES ====================
+
 // @route   PUT /api/wells/:id
-// @desc    Update a well
+// @desc    Update a well (full replacement)
 router.put('/:id', async (req, res) => {
   try {
     await dbConnect();
@@ -264,38 +318,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// @route   DELETE /api/wells/:id
-// @desc    Delete a well
-router.delete('/:id', async (req, res) => {
-  try {
-    await dbConnect();
-    
-    const deletedWell = await Well.findByIdAndDelete(req.params.id)
-      .maxTimeMS(10000);
-    
-    if (!deletedWell) {
-      return res.status(404).json({ 
-        error: 'Not found',
-        message: 'Well not found' 
-      });
-    }
-
-    console.log(`Deleted well: ${deletedWell.wellName}`);
-    res.json({ 
-      message: 'Well deleted successfully',
-      deletedWell 
-    });
-  } catch (err) {
-    if (err.name === 'CastError') {
-      return res.status(400).json({ 
-        error: 'Invalid ID format',
-        message: 'The provided well ID is invalid' 
-      });
-    }
-    handleError(res, err, 'Failed to delete well');
-  }
-});
-
 // @route   PATCH /api/wells/:id/phases
 // @desc    Add a new phase to a well
 router.patch('/:id/phases', async (req, res) => {
@@ -341,51 +363,293 @@ router.patch('/:id/phases', async (req, res) => {
   }
 });
 
-// @route   POST /api/wells/initialize
-// @desc    Initialize with sample wells (optional - similar to sites initialize)
-router.post('/initialize', async (req, res) => {
+// ==================== DELETE ROUTES (Most Specific to Least Specific) ====================
+
+// @route   DELETE /api/wells/:id/phases/:phaseIndex/subphases/:subPhaseIndex/items/:itemIndex
+// @desc    Delete a single item from a subphase (MOST SPECIFIC - 5 segments)
+router.delete('/:id/phases/:phaseIndex/subphases/:subPhaseIndex/items/:itemIndex', async (req, res) => {
   try {
     await dbConnect();
     
-    const sampleWells = [
-      {
-        wellName: "Exploration Well A",
-        wellAFE: "AFE-2024-001",
-        wellOwner: "Guyana Oil Corp",
-        wellPhases: []
-      },
-      {
-        wellName: "Production Well B",
-        wellAFE: "AFE-2024-002",
-        wellOwner: "Guyana Oil Corp",
-        wellPhases: []
-      }
-    ];
+    const phaseIndex = parseInt(req.params.phaseIndex);
+    const subPhaseIndex = parseInt(req.params.subPhaseIndex);
+    const itemIndex = parseInt(req.params.itemIndex);
+    
+    if (isNaN(phaseIndex) || phaseIndex < 0 || 
+        isNaN(subPhaseIndex) || subPhaseIndex < 0 || 
+        isNaN(itemIndex) || itemIndex < 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Invalid phase, subphase, or item index' 
+      });
+    }
 
-    const operations = sampleWells.map(well => ({
-      updateOne: {
-        filter: { wellName: well.wellName },
-        update: { $setOnInsert: well },
-        upsert: true
-      }
-    }));
+    const well = await Well.findById(req.params.id);
+    
+    if (!well) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Well not found' 
+      });
+    }
 
-    const result = await Well.bulkWrite(operations, { maxTimeMS: 15000 });
+    // Check if phase exists
+    if (phaseIndex >= well.wellPhases.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Phase not found' 
+      });
+    }
+
+    const phase = well.wellPhases[phaseIndex];
     
-    const wells = await Well.find()
-      .sort({ wellName: 1 })
-      .maxTimeMS(10000);
+    // Check if subphase exists
+    if (subPhaseIndex >= phase.subPhases.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Subphase not found' 
+      });
+    }
+
+    const subPhase = phase.subPhases[subPhaseIndex];
     
-    console.log(`Initialized wells: ${result.upsertedCount} created, ${result.matchedCount} existing`);
+    // Check if item exists
+    if (itemIndex >= subPhase.items.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Item not found' 
+      });
+    }
+
+    // Remove the item
+    const removedItem = subPhase.items[itemIndex];
+    subPhase.items.splice(itemIndex, 1);
     
-    res.status(201).json({
-      message: 'Wells initialized successfully',
-      created: result.upsertedCount,
-      existing: result.matchedCount,
-      wells: wells
+    await well.save();
+    console.log(`Deleted item '${removedItem.itemName}' from subphase '${subPhase.subPhaseName}' in well: ${well.wellName}`);
+    
+    res.json({
+      message: 'Item deleted successfully',
+      well
     });
   } catch (err) {
-    handleError(res, err, 'Failed to initialize wells');
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to delete item');
+  }
+});
+
+// @route   DELETE /api/wells/:id/phases/:phaseIndex/subphases/:subPhaseIndex
+// @desc    Delete a subphase from a phase (4 segments)
+router.delete('/:id/phases/:phaseIndex/subphases/:subPhaseIndex', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const phaseIndex = parseInt(req.params.phaseIndex);
+    const subPhaseIndex = parseInt(req.params.subPhaseIndex);
+    
+    if (isNaN(phaseIndex) || phaseIndex < 0 || isNaN(subPhaseIndex) || subPhaseIndex < 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Invalid phase or subphase index' 
+      });
+    }
+
+    const well = await Well.findById(req.params.id);
+    
+    if (!well) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Well not found' 
+      });
+    }
+
+    // Check if phase exists
+    if (phaseIndex >= well.wellPhases.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Phase not found' 
+      });
+    }
+
+    // Check if subphase exists
+    if (subPhaseIndex >= well.wellPhases[phaseIndex].subPhases.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Subphase not found' 
+      });
+    }
+
+    // Remove the subphase
+    const phase = well.wellPhases[phaseIndex];
+    const removedSubPhase = phase.subPhases[subPhaseIndex];
+    phase.subPhases.splice(subPhaseIndex, 1);
+    
+    await well.save();
+    console.log(`Deleted subphase '${removedSubPhase.subPhaseName}' from phase '${phase.phaseName}' in well: ${well.wellName}`);
+    
+    res.json({
+      message: 'Subphase deleted successfully',
+      well
+    });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to delete subphase');
+  }
+});
+
+// @route   DELETE /api/wells/:id/phases/:phaseIndex/items
+// @desc    Delete all items from a phase (all subphases items) (4 segments)
+router.delete('/:id/phases/:phaseIndex/items', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const phaseIndex = parseInt(req.params.phaseIndex);
+    
+    if (isNaN(phaseIndex) || phaseIndex < 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Invalid phase index' 
+      });
+    }
+
+    const well = await Well.findById(req.params.id);
+    
+    if (!well) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Well not found' 
+      });
+    }
+
+    // Check if phase exists
+    if (phaseIndex >= well.wellPhases.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Phase not found' 
+      });
+    }
+
+    // Clear all items from all subphases in this phase
+    const phase = well.wellPhases[phaseIndex];
+    let itemCount = 0;
+    
+    phase.subPhases.forEach(subPhase => {
+      itemCount += subPhase.items.length;
+      subPhase.items = [];
+    });
+    
+    await well.save();
+    console.log(`Deleted ${itemCount} items from all subphases in phase '${phase.phaseName}' of well: ${well.wellName}`);
+    
+    res.json({
+      message: 'All items deleted successfully from phase',
+      itemCount,
+      well
+    });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to delete items from phase');
+  }
+});
+
+// @route   DELETE /api/wells/:id/phases/:phaseIndex
+// @desc    Delete a phase from a well (LEAST SPECIFIC - 3 segments)
+router.delete('/:id/phases/:phaseIndex', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const phaseIndex = parseInt(req.params.phaseIndex);
+    
+    if (isNaN(phaseIndex) || phaseIndex < 0) {
+      return res.status(400).json({ 
+        error: 'Validation failed',
+        message: 'Invalid phase index' 
+      });
+    }
+
+    const well = await Well.findById(req.params.id);
+    
+    if (!well) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Well not found' 
+      });
+    }
+
+    // Check if phase exists
+    if (phaseIndex >= well.wellPhases.length) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Phase not found' 
+      });
+    }
+
+    // Remove the phase
+    const removedPhase = well.wellPhases[phaseIndex];
+    well.wellPhases.splice(phaseIndex, 1);
+    
+    await well.save();
+    console.log(`Deleted phase '${removedPhase.phaseName}' from well: ${well.wellName}`);
+    
+    res.json({
+      message: 'Phase deleted successfully',
+      well
+    });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to delete phase');
+  }
+});
+
+// @route   DELETE /api/wells/:id
+// @desc    Delete a well (single segment)
+router.delete('/:id', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    const deletedWell = await Well.findByIdAndDelete(req.params.id)
+      .maxTimeMS(10000);
+    
+    if (!deletedWell) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Well not found' 
+      });
+    }
+
+    console.log(`Deleted well: ${deletedWell.wellName}`);
+    res.json({ 
+      message: 'Well deleted successfully',
+      deletedWell 
+    });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to delete well');
   }
 });
 
