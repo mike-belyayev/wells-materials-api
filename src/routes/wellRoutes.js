@@ -186,6 +186,93 @@ router.post('/', async (req, res) => {
   }
 });
 
+// @route   POST /api/wells/:id/clone
+// @desc    Clone an existing well with all its phases, subphases, and items
+router.post('/:id/clone', async (req, res) => {
+  try {
+    await dbConnect();
+    
+    // Find the original well
+    const originalWell = await Well.findById(req.params.id)
+      .maxTimeMS(10000);
+    
+    if (!originalWell) {
+      return res.status(404).json({ 
+        error: 'Not found',
+        message: 'Original well not found' 
+      });
+    }
+
+    // Create clone name with "Clone of: " prefix
+    const cloneName = `Clone of: ${originalWell.wellName}`;
+    
+    // Check if a well with the clone name already exists
+    const existingWell = await Well.findOne({ wellName: cloneName });
+    if (existingWell) {
+      return res.status(409).json({ 
+        error: 'Duplicate key error',
+        message: 'A well with this clone name already exists. Please delete the existing clone or choose a different name.' 
+      });
+    }
+
+    // Deep clone the well document
+    // Convert to object and remove _id and __v to let MongoDB generate new ones
+    const wellData = originalWell.toObject();
+    delete wellData._id;
+    delete wellData.__v;
+    
+    // Update the name with clone prefix
+    wellData.wellName = cloneName;
+    
+    wellData.wellAFE = `${originalWell.wellAFE} (Clone)`;
+    
+    // Deep clone all nested structures (phases, subphases, items)
+    // The toObject() already gives us a deep copy, but we'll ensure it's clean
+    if (wellData.wellPhases) {
+      wellData.wellPhases = wellData.wellPhases.map(phase => ({
+        ...phase,
+        _id: undefined, // Remove phase _id to generate new ones
+        subPhases: phase.subPhases?.map(subPhase => ({
+          ...subPhase,
+          _id: undefined, // Remove subPhase _id to generate new ones
+          items: subPhase.items?.map(item => ({
+            ...item,
+            _id: undefined // Remove item _id to generate new ones
+          })) || []
+        })) || []
+      }));
+    }
+    
+    // Create the cloned well
+    const clonedWell = new Well(wellData);
+    const savedClonedWell = await clonedWell.save();
+    
+    console.log(`Cloned well: ${originalWell.wellName} -> ${savedClonedWell.wellName}`);
+    console.log(`Clone details: ${savedClonedWell.wellPhases?.length || 0} phases, ` +
+                `${savedClonedWell.wellPhases?.reduce((total, phase) => total + (phase.subPhases?.length || 0), 0) || 0} subphases, ` +
+                `${savedClonedWell.wellPhases?.reduce((total, phase) => 
+                  total + phase.subPhases?.reduce((subTotal, subPhase) => 
+                    subTotal + (subPhase.items?.length || 0), 0) || 0, 0) || 0} items`);
+    
+    res.status(201).json({
+      message: 'Well cloned successfully',
+      originalWell: {
+        id: originalWell._id,
+        name: originalWell.wellName
+      },
+      clonedWell: savedClonedWell
+    });
+  } catch (err) {
+    if (err.name === 'CastError') {
+      return res.status(400).json({ 
+        error: 'Invalid ID format',
+        message: 'The provided well ID is invalid' 
+      });
+    }
+    handleError(res, err, 'Failed to clone well');
+  }
+});
+
 // @route   POST /api/wells/initialize
 // @desc    Initialize with sample wells (optional - similar to sites initialize)
 router.post('/initialize', async (req, res) => {
